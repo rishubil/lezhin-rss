@@ -1,0 +1,6 @@
+venv/
+*.pyc
+.idea/
+
+app/db/*
+gmail.txt
