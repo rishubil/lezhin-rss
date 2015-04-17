@@ -39,7 +39,6 @@ if __name__ == "__main__":
     with open("gmail.txt", 'r') as f:
         email = f.readline()
         pwd = f.readline()
-        print email, pwd
         result = json.loads(update_db())
         if result['status'] == 'failed':
             send_email(email, pwd, result['description'])
