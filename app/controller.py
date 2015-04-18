@@ -198,7 +198,7 @@ def episode_to_atom_item(episode):
 @app.route('/lezhin-rss/new.xml')
 def new_rss():
     icon_url = "http://i.imgur.com/LJ0ru93.png"
-    comics = Comic.query.order_by(Comic.published.desc()).limit(RSS_FEED_COUNT)
+    comics = Comic.query.order_by(Comic.published.desc(), Comic.seq.desc()).limit(RSS_FEED_COUNT)
     rss_items = [comic_to_rss_item(comic) for comic in comics]
 
     title = "레진코믹스 새로운 만화"
@@ -219,7 +219,7 @@ def new_rss():
 @app.route('/lezhin-rss/new.atom')
 def new_atom():
     icon_url = "http://i.imgur.com/LJ0ru93.png"
-    comics = Comic.query.order_by(Comic.published.desc()).limit(RSS_FEED_COUNT)
+    comics = Comic.query.order_by(Comic.published.desc(), Comic.seq.desc()).limit(RSS_FEED_COUNT)
     atom_items = [comic_to_atom_item(comic) for comic in comics]
 
     atom = AtomFeed(

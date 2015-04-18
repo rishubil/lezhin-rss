@@ -20,6 +20,7 @@ class Comic(db.Model):
     genre = db.Column(db.String(50))
     published = db.Column(db.DateTime)
     schedule = db.Column(db.String(50))
+    seq = db.Column(db.Integer)
     synopsis = db.Column(db.Text)
     title = db.Column(db.String(120))
     updated = db.Column(db.DateTime)
@@ -39,6 +40,7 @@ class Comic(db.Model):
         self.genre = temp['genre']
         self.published = datetime.fromtimestamp(temp['published'] / 1000)
         self.schedule = temp['schedule']
+        self.seq = temp['seq']
         self.synopsis = temp['synopsis']
         self.title = temp['title']
         self.updated = datetime.fromtimestamp(temp['updated'] / 1000)
@@ -58,12 +60,14 @@ class Episode(db.Model):
     episode_id = db.Column(db.String(100), primary_key=True)
     name = db.Column(db.String(10))
     published = db.Column(db.DateTime)
+    seq = db.Column(db.Integer)
     title = db.Column(db.String(120))
     updated = db.Column(db.DateTime)
 
     last_updated = db.Column(db.DateTime)
 
-    comic = db.relationship('Comic', backref=db.backref('episodes', lazy='dynamic', order_by=db.desc(published)))
+    comic = db.relationship('Comic',
+                            backref=db.backref('episodes', lazy='dynamic', order_by=(db.desc(published), db.desc(seq))))
 
     def __init__(self, json_string):
         self.original_json = json_string;
@@ -76,6 +80,7 @@ class Episode(db.Model):
         self.episode_id = temp['episodeId']
         self.name = temp['name']
         self.published = datetime.fromtimestamp(temp['published'] / 1000)
+        self.seq = temp['seq']
         self.title = temp['title']
         self.updated = datetime.fromtimestamp(temp['updated'] / 1000)
 
