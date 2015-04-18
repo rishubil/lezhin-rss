@@ -14,7 +14,7 @@ class Comic(db.Model):
     original_json = db.Column(db.Text)
     adult = db.Column(db.Boolean)
     artist_display_name = db.Column(db.String(100))
-    comic_id = db.Column(db.String(50), primary_key=True)
+    comic_id = db.Column(db.String(100), primary_key=True)
     comment = db.Column(db.Text)
     created = db.Column(db.DateTime)
     genre = db.Column(db.String(50))
@@ -51,10 +51,11 @@ class Episode(db.Model):
 
     original_json = db.Column(db.Text)
     artist_comment = db.Column(db.String(200))
+    banner = db.Column(db.String(300))
     comic_id = db.Column(db.String(50), db.ForeignKey('comics.comic_id'))
     created = db.Column(db.DateTime)
     display_name = db.Column(db.String(100))
-    episode_id = db.Column(db.String(50), primary_key=True)
+    episode_id = db.Column(db.String(100), primary_key=True)
     name = db.Column(db.String(10))
     published = db.Column(db.DateTime)
     title = db.Column(db.String(120))
@@ -68,6 +69,7 @@ class Episode(db.Model):
         self.original_json = json_string;
         temp = json.loads(json_string)
         self.artist_comment = temp['artistComment']
+        self.banner = temp['banner']
         self.comic_id = temp['comicId']
         self.created = datetime.fromtimestamp(temp['created'] / 1000)
         self.display_name = temp['displayName']

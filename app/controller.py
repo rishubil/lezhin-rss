@@ -17,10 +17,13 @@ from multiprocessing import Pool
 import time
 import re
 
+URL_HOME = 'http://www.lezhin.com/'
 URL_GENRE = 'http://www.lezhin.com/#genre'
 URL_COMIC_PREFIX = 'http://www.lezhin.com/comic/'
 URL_COMIC_THUMBNAIL_PREFIX = 'http://cdn.lezhin.com/comics/'
 URL_COMIC_THUMBNAIL_POSTFIX = '/thumbnail'
+URL_COMIC_BANNER_PREFIX = 'http://cdn.lezhin.com/comics/'
+URL_COMIC_BANNER_POSTFIX = '/banners/1'
 REGEX_COMICS = r'comics: (\[{.*}\]),specials:'
 REGEX_EPISODES = r'all      : (\[{.*}\]),purchased:'
 RSS_FEED_COUNT = 30
@@ -141,8 +144,8 @@ def update_db():
 
 
 def comic_to_rss_item(comic):
-    des_message = html_escape(
-        "[%s]\n\"%s\"\n\n%s" % (comic.genre, comic.comment, comic.synopsis))
+    banner = URL_COMIC_BANNER_PREFIX + comic.comic_id + URL_COMIC_BANNER_POSTFIX
+    des_message = '<img src="%s"></img><p>[%s]</p><h3>"%s"</h3><p>%s</p>' % (banner, comic.genre, comic.comment, comic.synopsis)
     return PyRSS2Gen.RSSItem(
         title="%s - %s" % (comic.title, comic.artist_display_name),
         link=URL_COMIC_PREFIX + comic.comic_id,
@@ -153,7 +156,8 @@ def comic_to_rss_item(comic):
 
 
 def comic_to_atom_item(comic):
-    des_message = "<p>[%s]</p><h3>\"%s\"</h3><p>%s</p>" % (comic.genre, comic.comment, comic.synopsis)
+    banner = URL_COMIC_BANNER_PREFIX + comic.comic_id + URL_COMIC_BANNER_POSTFIX
+    des_message = '<img src="%s"></img><p>[%s]</p><h3>"%s"</h3><p>%s</p>' % (banner, comic.genre, comic.comment, comic.synopsis)
     return FeedEntry(
         title="%s - %s" % (comic.title, comic.artist_display_name),
         title_type='text',
@@ -167,7 +171,7 @@ def comic_to_atom_item(comic):
 
 
 def episode_to_rss_item(episode):
-    des_message = episode.artist_comment
+    des_message = '<img src="%s"></img><p>%s</p>' % (episode.banner, episode.artist_comment)
     return PyRSS2Gen.RSSItem(
         title=episode.title,
         link=URL_COMIC_PREFIX + episode.episode_id,
@@ -178,7 +182,7 @@ def episode_to_rss_item(episode):
 
 
 def episode_to_atom_item(episode):
-    des_message = episode.artist_comment
+    des_message = '<img src="%s"></img><p>%s</p>' % (episode.banner, episode.artist_comment)
     return FeedEntry(
         title=episode.title,
         title_type='text',
@@ -193,15 +197,20 @@ def episode_to_atom_item(episode):
 
 @app.route('/lezhin-rss/new.xml')
 def new_rss():
+    icon_url = "http://i.imgur.com/LJ0ru93.png"
     comics = Comic.query.order_by(Comic.published.desc()).limit(RSS_FEED_COUNT)
     rss_items = [comic_to_rss_item(comic) for comic in comics]
 
+    title = "레진코믹스 새로운 만화"
+    image = PyRSS2Gen.Image(icon_url, title, URL_HOME)
+
     rss = PyRSS2Gen.RSS2(
-        title="레진코믹스 새로운 만화",
+        title=title,
         link=URL_GENRE,
         description="레진코믹스에 새롭게 추가된 만화의 정보입니다.",
         language='ko',
         lastBuildDate=comics[0].last_updated,
+        image=image,
         items=rss_items)
 
     return rss.to_xml(encoding="utf-8")
