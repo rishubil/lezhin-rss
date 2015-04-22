@@ -23,47 +23,57 @@ by 이희원 (pastacode.dev@gmail.com)
     <link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/font-awesome/4.3.0/css/font-awesome.min.css">
     <style>
         .logo {
-        width: 100%;
-        height: 100%;
-        margin-top: 32px;
-        max-width: 300px;
-        max-height: 300px;
-        vertical-align: middle;
+            width: 100%;
+            height: 100%;
+            margin: 32px auto 18px;
+            max-width: 300px;
+            max-height: 300px;
+            vertical-align: middle;
         }
 
         .title {
-        color: #333333;
+            color: #333333;
         }
 
         .title:hover {
-        color: #111111r;
-        text-decoration: none;
+            color: #111111;
+            text-decoration: none;
         }
 
         .helper {
-        display: inline-block;
-        height: 100%;
-        vertical-align: middle;
+            display: inline-block;
+            height: 100%;
+            vertical-align: middle;
         }
 
         .search {
-        margin-bottom: 20px;
+            margin-bottom: 20px;
         }
 
         .thumbnail {
-        width: 100%;
-        height: 100%;
-        margin-top: 20px;
-        max-width: 128px;
-        max-height: 128px;
+            width: 100%;
+            height: 100%;
+            margin-top: 20px;
+            max-width: 128px;
+            max-height: 128px;
         }
 
-        .or_rss {
-        font-size: 14px !important;
+        .new {
+            margin-left: auto;
+            margin-right: auto;
+            max-width: 300px;
+        }
+
+        .alert {
+            padding: 15px;
+            margin-bottom: 20px;
+            border: 1px solid transparent;
+            border-radius: 4px;
+            font-size: 14px !important;
         }
 
         body {
-        margin-bottom: 20px;
+            margin-bottom: 20px;
         }
     </style>
 </head>
@@ -79,24 +89,35 @@ by 이희원 (pastacode.dev@gmail.com)
         <div class="col-md-8">
             <a class="title" href="{{ url_for('index') }}"><h1>Lezhin Comics Feed</h1></a>
 
-            <h3><a href="http://www.lezhin.com/" target="_blank">레진코믹스</a>에 등록되어 있는 만화들의 Atom/RSS 링크입니다.</h3>
+            <h3><a href="http://www.lezhin.com/" target="_blank">레진코믹스</a>에 등록되어 있는 만화들의 Atom(RSS) 링크입니다.</h3>
             <br/>
 
             <p class="desc">해당 Feed는 자동 생성되며, 새로운 만화가 레진코믹스에 등록되면 자동으로 추가됩니다. 또한 본 Feed는 레진코믹스에서 공식적으로 제공하는 기능이 아니며,
                 언제든지 고장(...)날 수 있습니다.</p>
-
+        </div>
+    </div>
+    <div class="container">
+        <div class="col-md-12">
             <p>
                 <small>만약, 특정 만화의 Feed외의 레진코믹스에 새로 추가된 만화들의 목록을 Feed로 받아보고 싶다면 아래의 버튼을 통해 가능합니다.</small>
             </p>
-            <p><a class="btn btn-primary" role="button" href="{{ url_for('new_atom') }}" target="_blank"><i
-                    class="fa fa-rss"></i>&nbsp;&nbsp;새로 추가된 만화 목록 (Atom 1.0)</a>&nbsp;&nbsp;<span class="or_rss">또는, <a
-                    role="button" href="{{ url_for('new_rss') }}" target="_blank">RSS 2.0</a></span></p>
+            <div>
+                <a class="new btn btn-primary btn-block btn-lg" role="button" href="{{ url_for('new_atom') }}"
+                   target="_blank"><i
+                        class="fa fa-rss"></i>&nbsp;&nbsp;새로 추가된 만화 구독하기</a>
+            </div>
+            <br/>
+
+            <p class="bg-success alert">
+                <i class="fa fa-exclamation-triangle"></i>&nbsp;&nbsp;본 사이트에서 제공하는 "무료만 구독하기" 기능은 해당 만화 중 결제없이 볼 수 있는
+                에피소드를 구독하는 방식입니다. 만약 해당 만화의 무료 에피소드가 유료로 전환된 경우 사용자에게 공지하지 않습니다.
+            </p>
         </div>
     </div>
 </div>
 <div class="container">
-    <div class="search col-md-10 col-md-offset-1">
-        <form action="{{ url_for('index') }}" method='get'>
+    <div class="search col-md-10 col-md-offset-1" id="!">
+        <form action="{{ url_for('index') }}#!" method='get'>
             <div class="input-group">
                 <span class="input-group-addon"><i class="fa fa-search fa-fw"></i></span>
                 <input class="form-control" placeholder="제목 및 작가 검색..." name='q' {% if context.q %}
@@ -113,19 +134,20 @@ by 이희원 (pastacode.dev@gmail.com)
                                                                                                   src="{{ context.URL_COMIC_THUMBNAIL_PREFIX }}{{ comic.comic_id }}{{ context.URL_COMIC_THUMBNAIL_POSTFIX }}"></a>
             </div>
             <div class="col-sm-8">
-                <a href="{{ context.URL_COMIC_PREFIX }}{{ comic.comic_id }}" target="_blank"><h3>{{ comic.title }}</h3>
-                </a>
-                <h4>{{ comic.artist_display_name }}</h4>
+                <h3>
+                    <a href="{{ context.URL_COMIC_PREFIX }}{{ comic.comic_id }}" target="_blank">{{ comic.title }}</a>
+                    <small>{{ comic.artist_display_name }}</small>
+                </h3>
 
                 <p>{{ comic.comment }}</p>
 
                 <p>
-                    <a class="btn btn-default btn-sm" role="button"
+                    <a class="btn btn-primary btn-sm" role="button"
                        href="{{ url_for('comic_atom', comic_id=comic.comic_id) }}" target="_blank"><i
-                            class="fa fa-rss"></i>&nbsp;&nbsp;Atom 1.0</a>
-                    &nbsp;
-                    <small>또는, <a href="{{ url_for('comic_rss', comic_id=comic.comic_id) }}" target="_blank">RSS 2.0</a>
-                    </small>
+                            class="fa fa-rss"></i>&nbsp;&nbsp;전체 구독하기</a>
+                    <a class="btn btn-default btn-sm" role="button"
+                       href="{{ url_for('comic_free_atom', comic_id=comic.comic_id) }}" target="_blank"><i
+                            class="fa fa-rss"></i>&nbsp;&nbsp;무료만 구독하기</a>
                 </p>
             </div>
         </div>
@@ -140,10 +162,10 @@ by 이희원 (pastacode.dev@gmail.com)
     {% endif %}
     <div class="pager">
         <p>{% if context.has_prev %}<a class="btn btn-info"
-                                       href="{{ url_for('index_p', page=context.page - 1) }}{% if context.q != None %}?q={{ context.q }}{% endif %}"><i
+                                       href="{{ url_for('index_p', page=context.page - 1) }}{% if context.q != None %}?q={{ context.q }}{% endif %}#!"><i
                 class="fa fa-arrow-left"></i>&nbsp;&nbsp;Prev</a>{% endif %}&nbsp;&nbsp;{% if context.has_next %}<a
                 class="btn btn-info"
-                href="{{ url_for('index_p', page=context.page + 1) }}{% if context.q != None %}?q={{ context.q }}{% endif %}">Next&nbsp;&nbsp;<i
+                href="{{ url_for('index_p', page=context.page + 1) }}{% if context.q != None %}?q={{ context.q }}{% endif %}#!">Next&nbsp;&nbsp;<i
                 class="fa fa-arrow-right"></i></a>{% endif %}</p>
     </div>
     <hr>
@@ -157,13 +179,13 @@ by 이희원 (pastacode.dev@gmail.com)
 <script src="//ajax.googleapis.com/ajax/libs/jquery/2.1.3/jquery.min.js"></script>
 <script src="//maxcdn.bootstrapcdn.com/bootstrap/3.3.4/js/bootstrap.min.js"></script>
 <script>
-    (function(i, s, o, g, r, a, m) {
+    (function (i, s, o, g, r, a, m) {
         i['GoogleAnalyticsObject'] = r;
-        i[r] = i[r] || function() {
+        i[r] = i[r] || function () {
             (i[r].q = i[r].q || []).push(arguments)
         }, i[r].l = 1 * new Date();
         a = s.createElement(o),
-            m = s.getElementsByTagName(o)[0];
+                m = s.getElementsByTagName(o)[0];
         a.async = 1;
         a.src = g;
         m.parentNode.insertBefore(a, m)

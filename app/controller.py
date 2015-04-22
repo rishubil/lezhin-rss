@@ -285,6 +285,54 @@ def comic_atom(comic_id):
     return atom.get_response()
 
 
+@app.route('/lezhin-rss/comic/free/<string:comic_id>.xml')
+def comic_free_rss(comic_id):
+    comic = Comic.query.get(comic_id)
+    if comic is None:
+        return "... 그런 만화가 없는데요?", 404
+    episodes = comic.episodes[0:RSS_FEED_COUNT]
+
+    rss_items = [episode_to_rss_item(episode) for episode in episodes if episode.free]
+    rss_title = "%s - %s" % (comic.title, comic.artist_display_name)
+    image = PyRSS2Gen.Image(URL_COMIC_THUMBNAIL_PREFIX + comic_id +
+                            URL_COMIC_THUMBNAIL_POSTFIX, rss_title, URL_COMIC_PREFIX + comic_id)
+    rss = PyRSS2Gen.RSS2(
+        title=rss_title,
+        link=URL_COMIC_PREFIX + comic_id,
+        description=comic.synopsis,
+        language='ko',
+        lastBuildDate=comic.last_updated,
+        image=image,
+        items=rss_items)
+
+    return rss.to_xml(encoding="utf-8")
+
+
+@app.route('/lezhin-rss/comic/free/<string:comic_id>.atom')
+def comic_free_atom(comic_id):
+    comic = Comic.query.get(comic_id)
+    if comic is None:
+        return "... 그런 만화가 없는데요?", 404
+    episodes = comic.episodes[0:RSS_FEED_COUNT]
+
+    atom_items = [episode_to_atom_item(episode) for episode in episodes if episode.free]
+    atom_title = "%s - %s" % (comic.title, comic.artist_display_name)
+
+    atom = AtomFeed(
+        atom_title,
+        updated=comic.last_updated,
+        subtitle=comic.synopsis,
+        subtitle_type='text',
+        icon=URL_COMIC_THUMBNAIL_PREFIX + comic_id + URL_COMIC_THUMBNAIL_POSTFIX,
+        logo=URL_COMIC_THUMBNAIL_PREFIX + comic_id + URL_COMIC_THUMBNAIL_POSTFIX,
+        feed_url=request.url,
+        url=URL_GENRE,
+        entries=atom_items
+    )
+
+    return atom.get_response()
+
+
 @app.route('/lezhin-rss/')
 def index():
     return index_p(1)

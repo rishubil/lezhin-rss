@@ -58,6 +58,7 @@ class Episode(db.Model):
     created = db.Column(db.DateTime)
     display_name = db.Column(db.String(100))
     episode_id = db.Column(db.String(100), primary_key=True)
+    free = db.Column(db.Boolean, default=False)
     name = db.Column(db.String(10))
     published = db.Column(db.DateTime)
     seq = db.Column(db.Integer)
@@ -78,6 +79,7 @@ class Episode(db.Model):
         self.created = datetime.fromtimestamp(temp['created'] / 1000)
         self.display_name = temp['displayName']
         self.episode_id = temp['episodeId']
+        self.free = temp['free']
         self.name = temp['name']
         self.published = datetime.fromtimestamp(temp['published'] / 1000)
         self.seq = temp['seq']
