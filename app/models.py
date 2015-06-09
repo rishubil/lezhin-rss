@@ -73,7 +73,8 @@ class Episode(db.Model):
     def __init__(self, json_string):
         self.original_json = json_string;
         temp = json.loads(json_string)
-        self.artist_comment = temp['artistComment']
+        if 'artistComment' in temp:
+            self.artist_comment = temp['artistComment']
         self.banner = temp['banner']
         self.comic_id = temp['comicId']
         self.created = datetime.fromtimestamp(temp['created'] / 1000)

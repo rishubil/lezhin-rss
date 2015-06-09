@@ -68,7 +68,7 @@ def get_episodes(html):
 
 
 def get_episode_from_url(comic_id):
-    #print("[{0:s}] updating episodes of {1:s}...".format(str(datetime.now()), comic_id))
+    # print("[{0:s}] updating episodes of {1:s}...".format(str(datetime.now()), comic_id))
     r = None
     retry_count = 3
     while retry_count > 0:
