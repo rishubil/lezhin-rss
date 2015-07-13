@@ -24,12 +24,15 @@ URL_COMIC_THUMBNAIL_PREFIX = 'http://cdn.lezhin.com/comics/'
 URL_COMIC_THUMBNAIL_POSTFIX = '/thumbnail'
 URL_COMIC_BANNER_PREFIX = 'http://cdn.lezhin.com/comics/'
 URL_COMIC_BANNER_POSTFIX = '/banners/1'
-REGEX_COMICS = r'comics: (\[{.*}\]),specials:'
-REGEX_EPISODES = r'all      : (\[{.*}\]),purchased:'
+URL_EPISODE_BANNER_FORMAT = 'http://ncdn.lezhin.com/v2/comics/%s/episodes/%s/images/banner?width=184'
+REGEX_COMICS = r'comics:(\[{.*}\]),inventories'
+REGEX_COMIC = r'comic:({.*}),departure'
+REGEX_EPISODES = r'all:(\[{.*}\]),purchased:'
 RSS_FEED_COUNT = 30
 INDEX_ITEM_IN_ROW = 2
 INDEX_PAGE_SIZE = 30
-UPDATE_PROCESS_SIZE = 8
+UPDATE_PROCESS_SIZE = 16
+RETRY_MAX_COUNT = 5
 
 # escape() and unescape() takes care of &, < and >.
 html_escape_table = {
@@ -62,15 +65,20 @@ def get_comics(html):
     return json.loads(m.group(1))
 
 
+def get_comic(html):
+    m = re.search(REGEX_COMIC, html)
+    return json.loads(m.group(1))
+
+
 def get_episodes(html):
     m = re.search(REGEX_EPISODES, html)
     return json.loads(m.group(1))
 
 
 def get_episode_from_url(comic_id):
-    # print("[{0:s}] updating episodes of {1:s}...".format(str(datetime.now()), comic_id))
+    print("[{0:s}] updating episodes of {1:s}...".format(str(datetime.now()), comic_id))
     r = None
-    retry_count = 3
+    retry_count = RETRY_MAX_COUNT
     while retry_count > 0:
         try:
             r = requests.get(URL_COMIC_PREFIX + comic_id)
@@ -81,7 +89,7 @@ def get_episode_from_url(comic_id):
             if retry_count <= 0:
                 raise e
 
-    return get_episodes(r.text)
+    return get_episodes(r.text), get_comic(r.text)
 
 
 def update_db():
@@ -105,18 +113,22 @@ def update_db():
         comics = list()
         episodes = list()
         episodes_ids = list()
-        for i, comic_loaded in enumerate(comics_loaded):
-            comic = Comic(json.dumps(comic_loaded))
-            comics.append(comic)
-            episodes_ids.append(comic.comic_id)
+        for comic_loaded in comics_loaded:
+            episodes_ids.append(Comic(json.dumps(comic_loaded)).comic_id)
 
         pool = Pool(processes=UPDATE_PROCESS_SIZE)
         episodes_loadeds = pool.map(get_episode_from_url, episodes_ids)
 
-        for episodes_loaded in episodes_loadeds:
+        # episodes_loadeds = [get_episode_from_url(episodes_id) for episodes_id in episodes_ids]
+
+        for episodes_loaded, detail_comic in episodes_loadeds:
+            comic = Comic(json.dumps(detail_comic))
+            comics.append(comic)
             for episode_loaded in episodes_loaded:
                 json_string = json.dumps(episode_loaded)
                 episode = Episode(json_string)
+                episode.banner = URL_EPISODE_BANNER_FORMAT % (comic.uid, episode.uid)
+                episode.comic = comic
                 episodes.append(episode)
 
         print("[{0:s}] commiting comics and episodes...".format(str(datetime.now()), ))
@@ -219,7 +231,7 @@ def new_rss():
 @app.route('/lezhin-rss/new.atom')
 def new_atom():
     icon_url = "http://i.imgur.com/LJ0ru93.png"
-    comics = Comic.query.order_by(Comic.published.desc(), Comic.seq.desc()).limit(RSS_FEED_COUNT)
+    comics = Comic.query.order_by(Comic.published.desc()).limit(RSS_FEED_COUNT)
     atom_items = [comic_to_atom_item(comic) for comic in comics]
 
     atom = AtomFeed(
