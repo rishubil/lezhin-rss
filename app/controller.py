@@ -186,7 +186,7 @@ def episode_to_rss_item(episode):
     des_message = '<img src="%s"></img><p>%s</p>' % (episode.banner, episode.artist_comment)
     return PyRSS2Gen.RSSItem(
         title=episode.title,
-        link=URL_COMIC_PREFIX + episode.episode_id,
+        link=URL_COMIC_PREFIX + episode.comic_id + '/' + episode.name,
         description=des_message,
         guid=PyRSS2Gen.Guid(URL_COMIC_PREFIX + episode.episode_id),
         pubDate=episode.published
@@ -200,7 +200,7 @@ def episode_to_atom_item(episode):
         title_type='text',
         summary=des_message,
         summary_type='html',
-        url=URL_COMIC_PREFIX + episode.episode_id,
+        url=URL_COMIC_PREFIX + episode.comic_id + '/' + episode.name,
         published=episode.published,
         updated=episode.published,
         author=episode.comic.artist_display_name
