@@ -130,23 +130,23 @@ by 이희원 (pastacode.dev@gmail.com)
         {% for comic in comicrow %}
         <div class="col-sm-6">
             <div class="col-sm-4">
-                <a href="{{ context.URL_COMIC_PREFIX }}{{ comic.comic_id }}" target="_blank"><img class="thumbnail"
-                                                                                                  src="{{ context.URL_COMIC_THUMBNAIL_PREFIX }}{{ comic.comic_id }}{{ context.URL_COMIC_THUMBNAIL_POSTFIX }}"></a>
+                <a href="{{ context.URL_COMIC_FORMAT|format(comic.comicId) }}" target="_blank"><img class="thumbnail"
+                                                                                                  src="{{ context.URL_COMIC_THUMBNAIL_FORMAT|format(comic.comicId) }}"></a>
             </div>
             <div class="col-sm-8">
                 <h3>
-                    <a href="{{ context.URL_COMIC_PREFIX }}{{ comic.comic_id }}" target="_blank">{{ comic.title }}</a>
-                    <small>{{ comic.artist_display_name }}</small>
+                    <a href="{{ context.URL_COMIC_FORMAT|format(comic.comicId) }}" target="_blank">{{ comic.title }}</a>
+                    <small>{{ comic.artistDisplayName }}</small>
                 </h3>
 
                 <p>{{ comic.comment }}</p>
 
                 <p>
                     <a class="btn btn-primary btn-sm" role="button"
-                       href="{{ url_for('comic_atom', comic_id=comic.comic_id) }}" target="_blank"><i
+                       href="{{ url_for('comic_atom', comic_id=comic.comicId) }}" target="_blank"><i
                             class="fa fa-rss"></i>&nbsp;&nbsp;전체 구독하기</a>
                     <a class="btn btn-default btn-sm" role="button"
-                       href="{{ url_for('comic_free_atom', comic_id=comic.comic_id) }}" target="_blank"><i
+                       href="{{ url_for('comic_free_atom', comic_id=comic.comicId) }}" target="_blank"><i
                             class="fa fa-rss"></i>&nbsp;&nbsp;무료만 구독하기</a>
                 </p>
             </div>

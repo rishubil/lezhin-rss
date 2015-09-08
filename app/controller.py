@@ -9,135 +9,97 @@ from app.models import Comic, Episode
 import requests
 import json
 from datetime import datetime
-import PyRSS2Gen
-from xml.sax.saxutils import escape, unescape
 from werkzeug.contrib.atom import AtomFeed, FeedEntry
-from sqlalchemy import or_, desc
+from sqlalchemy import or_
 from multiprocessing import Pool
 import time
-import re
+
+API_HEADER = {'Authorization': 'Bearer 5c5dcca6-b245-4eb4-bbd9-259b216977c7',
+              'X-LZ-Version': '2.4.4',
+              'X-Requested-With': 'X-Requested-With'}
+
+API_URL_PREFIX = 'https://api.lezhin.com/v1/'
+CDN_URL_PREFIX = 'http://cdn.lezhin.com/'
 
 URL_HOME = 'http://www.lezhin.com/'
 URL_GENRE = 'http://www.lezhin.com/#genre'
-URL_COMIC_PREFIX = 'http://www.lezhin.com/comic/'
-URL_COMIC_THUMBNAIL_PREFIX = 'http://cdn.lezhin.com/comics/'
-URL_COMIC_THUMBNAIL_POSTFIX = '/thumbnail'
-URL_COMIC_BANNER_PREFIX = 'http://cdn.lezhin.com/comics/'
-URL_COMIC_BANNER_POSTFIX = '/banners/1'
-URL_EPISODE_BANNER_FORMAT = 'http://ncdn.lezhin.com/v2/comics/%s/episodes/%s/images/banner?width=184'
-REGEX_COMICS = r'comics:(\[{.*}\]),inventories'
-REGEX_COMIC = r'comic:({.*}),departure'
-REGEX_EPISODES = r'all:(\[{.*}\]),purchased:'
+URL_COMIC_FORMAT = 'http://www.lezhin.com/comic/%s'
+URL_EPISODE_FORMAT = 'http://www.lezhin.com/comic/%s'
+
+API_URL_COMICS = API_URL_PREFIX + 'comics'
+API_URL_EPISODES_FORMAT = API_URL_PREFIX + 'episodes/%s'
+URL_COMIC_BANNER_FORMAT = CDN_URL_PREFIX + 'comics/%s/images/banners/%s'
+URL_COMIC_THUMBNAIL_FORMAT = CDN_URL_PREFIX + 'comics/%s/images/thumbnail'
+URL_EPISODE_BANNER_FORMAT = CDN_URL_PREFIX + 'episodes/%s/banners/1'
+
 RSS_FEED_COUNT = 30
 INDEX_ITEM_IN_ROW = 2
 INDEX_PAGE_SIZE = 30
 UPDATE_PROCESS_SIZE = 16
 RETRY_MAX_COUNT = 5
 
-# escape() and unescape() takes care of &, < and >.
-html_escape_table = {
-    '\n': "<br/>",
-    '"': "&quot;",
-    "'": "&apos;"
-}
-html_unescape_table = {v: k for k, v in html_escape_table.items()}
 
-
-def html_escape(text):
-    return escape(text, html_escape_table)
-
-
-def html_unescape(text):
-    return unescape(text, html_unescape_table)
-
-
-def find_all(a_str, sub, start=0):
-    while True:
-        start = a_str.find(sub, start)
-        if start == -1:
-            return
-        yield start
-        start += len(sub)
-
-
-def get_comics(html):
-    m = re.search(REGEX_COMICS, html)
-    return json.loads(m.group(1))
-
-
-def get_comic(html):
-    m = re.search(REGEX_COMIC, html)
-    return json.loads(m.group(1))
-
-
-def get_episodes(html):
-    m = re.search(REGEX_EPISODES, html)
-    return json.loads(m.group(1))
-
-
-def get_episode_from_url(comic_id):
-    print("[{0:s}] updating episodes of {1:s}...".format(str(datetime.now()), comic_id))
+def get_comics():
+    print("[{0:s}] getting comics...".format(str(datetime.now()), ))
     r = None
     retry_count = RETRY_MAX_COUNT
     while retry_count > 0:
         try:
-            r = requests.get(URL_COMIC_PREFIX + comic_id)
+            r = requests.get(API_URL_COMICS, headers=API_HEADER)
             break
         except requests.exceptions.ConnectionError as e:
             print("[{0:s}] connection error. trying again...".format(str(datetime.now()), ))
             retry_count -= 1
             if retry_count <= 0:
                 raise e
+    result = json.loads(r.text)
+    return [Comic(comic_dict) for comic_dict in result]
 
-    return get_episodes(r.text), get_comic(r.text)
 
-
-def update_db():
-    start = time.time()
-    result = dict()
+def get_episodes(comic_id):
     try:
-        print("[{0:s}] updating comics...".format(str(datetime.now()), ))
-        r1 = None
-        retry_count = 3
+        print("[{0:s}] getting episodes of {1:s}...".format(str(datetime.now()), comic_id))
+        r = None
+        retry_count = RETRY_MAX_COUNT
         while retry_count > 0:
             try:
-                r1 = requests.get(URL_GENRE)
+                r = requests.get(API_URL_EPISODES_FORMAT % (comic_id,), headers=API_HEADER)
                 break
             except requests.exceptions.ConnectionError as e:
                 print("[{0:s}] connection error. trying again...".format(str(datetime.now()), ))
                 retry_count -= 1
                 if retry_count <= 0:
                     raise e
+        result = json.loads(r.text)
+        return [Episode(episode_dict) for episode_dict in result]
+    except:
+        import traceback
 
-        comics_loaded = get_comics(r1.text)
-        comics = list()
-        episodes = list()
-        episodes_ids = list()
-        for comic_loaded in comics_loaded:
-            episodes_ids.append(Comic(json.dumps(comic_loaded)).comic_id)
+        print("[{0:s}] well, an error is coming.".format(str(datetime.now()), ))
+        print(traceback.format_exc())
+
+
+def update_db():
+    start = time.time()
+    result = dict()
+    try:
+        comics = get_comics()
 
         pool = Pool(processes=UPDATE_PROCESS_SIZE)
-        episodes_loadeds = pool.map(get_episode_from_url, episodes_ids)
+        episodes_list = pool.map(get_episodes, [comic.comicId for comic in comics])
 
-        # episodes_loadeds = [get_episode_from_url(episodes_id) for episodes_id in episodes_ids]
-
-        for episodes_loaded, detail_comic in episodes_loadeds:
-            comic = Comic(json.dumps(detail_comic))
-            comics.append(comic)
-            for episode_loaded in episodes_loaded:
-                json_string = json.dumps(episode_loaded)
-                episode = Episode(json_string)
-                episode.banner = URL_EPISODE_BANNER_FORMAT % (comic.uid, episode.uid)
-                episode.comic = comic
-                episodes.append(episode)
+        # episodes = [get_episodes(comic.comicId) for comic in comics]
 
         print("[{0:s}] commiting comics and episodes...".format(str(datetime.now()), ))
         db.session.query(Comic).delete()
         db.session.query(Episode).delete()
         for comic in comics:
-            db.session.add(comic)
-        for episode in episodes:
-            db.session.add(episode)
+            if Comic.query.get(comic.comicId) is None:
+                db.session.add(comic)
+        for episodes in episodes_list:
+            for episode in episodes:
+                if Episode.query.get(episode.episodeId) is None:
+                    db.session.add(episode)
         db.session.commit()
         end = time.time()
         print("[{0:s}] done in {1:s} sec.".format(str(datetime.now()), str(end - start)))
@@ -155,88 +117,47 @@ def update_db():
     return json.dumps(result)
 
 
-def comic_to_rss_item(comic):
-    banner = URL_COMIC_BANNER_PREFIX + comic.comic_id + URL_COMIC_BANNER_POSTFIX
-    des_message = '<img src="%s"></img><p>[%s]</p><h3>"%s"</h3><p>%s</p>' % (banner, comic.genre, comic.comment, comic.synopsis)
-    return PyRSS2Gen.RSSItem(
-        title="%s - %s" % (comic.title, comic.artist_display_name),
-        link=URL_COMIC_PREFIX + comic.comic_id,
-        description=des_message,
-        guid=PyRSS2Gen.Guid(URL_COMIC_PREFIX + comic.comic_id),
-        pubDate=comic.published
-    )
-
-
 def comic_to_atom_item(comic):
-    banner = URL_COMIC_BANNER_PREFIX + comic.comic_id + URL_COMIC_BANNER_POSTFIX
-    des_message = '<img src="%s"></img><p>[%s]</p><h3>"%s"</h3><p>%s</p>' % (banner, comic.genre, comic.comment, comic.synopsis)
+    banner = URL_COMIC_BANNER_FORMAT % (comic.comicId, comic.banners)
+    des_message = '<img src="%s"></img><p>[%s]</p><h3>"%s"</h3><p>%s</p>' % \
+                  (banner, comic.genre, comic.comment, comic.synopsis)
     return FeedEntry(
-        title="%s - %s" % (comic.title, comic.artist_display_name),
+        title="%s - %s" % (comic.title, comic.artistDisplayName),
         title_type='text',
         summary=des_message,
         summary_type='html',
-        url=URL_COMIC_PREFIX + comic.comic_id,
+        url=URL_COMIC_FORMAT % (comic.comicId,),
         published=comic.published,
         updated=comic.updated if (comic.updated - datetime(1970, 1, 1)).total_seconds() > 0 else comic.published,
-        author=comic.artist_display_name
-    )
-
-
-def episode_to_rss_item(episode):
-    des_message = '<img src="%s"></img><p>%s</p>' % (episode.banner, episode.artist_comment)
-    return PyRSS2Gen.RSSItem(
-        title=episode.title,
-        link=URL_COMIC_PREFIX + episode.comic_id + '/' + episode.name,
-        description=des_message,
-        guid=PyRSS2Gen.Guid(URL_COMIC_PREFIX + episode.episode_id),
-        pubDate=episode.published
+        author=comic.artistDisplayName
     )
 
 
 def episode_to_atom_item(episode):
-    des_message = '<img src="%s"></img><p>%s</p>' % (episode.banner, episode.artist_comment)
+    banner = URL_EPISODE_BANNER_FORMAT % (episode.episodeId, )
+    des_message = '<img src="%s"></img><p>%s</p>' % (banner, episode.artistComment)
     return FeedEntry(
         title=episode.title,
         title_type='text',
         summary=des_message,
         summary_type='html',
-        url=URL_COMIC_PREFIX + episode.comic_id + '/' + episode.name,
+        url=URL_EPISODE_FORMAT % (episode.episodeId,),
         published=episode.published,
         updated=episode.published,
-        author=episode.comic.artist_display_name
+        author=Comic.query.get(episode.comicId).artistDisplayName
     )
 
 
 @app.route('/lezhin-rss/new.xml')
-def new_rss():
-    icon_url = "http://i.imgur.com/LJ0ru93.png"
-    comics = Comic.query.order_by(Comic.published.desc(), Comic.seq.desc()).limit(RSS_FEED_COUNT)
-    rss_items = [comic_to_rss_item(comic) for comic in comics]
-
-    title = "레진코믹스 새로운 만화"
-    image = PyRSS2Gen.Image(icon_url, title, URL_HOME)
-
-    rss = PyRSS2Gen.RSS2(
-        title=title,
-        link=URL_GENRE,
-        description="레진코믹스에 새롭게 추가된 만화의 정보입니다.",
-        language='ko',
-        lastBuildDate=comics[0].last_updated,
-        image=image,
-        items=rss_items)
-
-    return rss.to_xml(encoding="utf-8")
-
-
 @app.route('/lezhin-rss/new.atom')
 def new_atom():
     icon_url = "http://i.imgur.com/LJ0ru93.png"
-    comics = Comic.query.order_by(Comic.published.desc()).limit(RSS_FEED_COUNT)
+    comics = Comic.query.order_by(Comic.published.desc()).limit(RSS_FEED_COUNT).all()
     atom_items = [comic_to_atom_item(comic) for comic in comics]
 
     atom = AtomFeed(
         "레진코믹스 새로운 만화",
-        updated=comics[0].last_updated,
+        updated=comics[0].published,
         subtitle="레진코믹스에 새롭게 추가된 만화의 정보입니다.",
         subtitle_type='text',
         icon=icon_url,
@@ -250,45 +171,24 @@ def new_atom():
 
 
 @app.route('/lezhin-rss/comic/<string:comic_id>.xml')
-def comic_rss(comic_id):
-    comic = Comic.query.get(comic_id)
-    if comic is None:
-        return "... 그런 만화가 없는데요?", 404
-    episodes = comic.episodes[0:RSS_FEED_COUNT]
-
-    rss_items = [episode_to_rss_item(episode) for episode in episodes]
-    rss_title = "%s - %s" % (comic.title, comic.artist_display_name)
-    image = PyRSS2Gen.Image(URL_COMIC_THUMBNAIL_PREFIX + comic_id +
-                            URL_COMIC_THUMBNAIL_POSTFIX, rss_title, URL_COMIC_PREFIX + comic_id)
-    rss = PyRSS2Gen.RSS2(
-        title=rss_title,
-        link=URL_COMIC_PREFIX + comic_id,
-        description=comic.synopsis,
-        language='ko',
-        lastBuildDate=comic.last_updated,
-        image=image,
-        items=rss_items)
-
-    return rss.to_xml(encoding="utf-8")
-
-
 @app.route('/lezhin-rss/comic/<string:comic_id>.atom')
 def comic_atom(comic_id):
     comic = Comic.query.get(comic_id)
     if comic is None:
         return "... 그런 만화가 없는데요?", 404
-    episodes = comic.episodes[0:RSS_FEED_COUNT]
+    episodes = Episode.query.filter_by(comicId=comic_id).order_by(Episode.published.desc(), Episode.seq.desc()).limit(
+        RSS_FEED_COUNT).all()
 
     atom_items = [episode_to_atom_item(episode) for episode in episodes]
-    atom_title = "%s - %s" % (comic.title, comic.artist_display_name)
+    atom_title = "%s - %s" % (comic.title, comic.artistDisplayName)
 
     atom = AtomFeed(
         atom_title,
-        updated=comic.last_updated,
+        updated=episodes[0].published,
         subtitle=comic.synopsis,
         subtitle_type='text',
-        icon=URL_COMIC_THUMBNAIL_PREFIX + comic_id + URL_COMIC_THUMBNAIL_POSTFIX,
-        logo=URL_COMIC_THUMBNAIL_PREFIX + comic_id + URL_COMIC_THUMBNAIL_POSTFIX,
+        icon=URL_COMIC_THUMBNAIL_FORMAT % (comic.comicId,),
+        logo=URL_COMIC_THUMBNAIL_FORMAT % (comic.comicId,),
         feed_url=request.url,
         url=URL_GENRE,
         entries=atom_items
@@ -298,45 +198,24 @@ def comic_atom(comic_id):
 
 
 @app.route('/lezhin-rss/comic/free/<string:comic_id>.xml')
-def comic_free_rss(comic_id):
-    comic = Comic.query.get(comic_id)
-    if comic is None:
-        return "... 그런 만화가 없는데요?", 404
-    episodes = comic.episodes[0:RSS_FEED_COUNT]
-
-    rss_items = [episode_to_rss_item(episode) for episode in episodes if episode.free]
-    rss_title = "%s - %s" % (comic.title, comic.artist_display_name)
-    image = PyRSS2Gen.Image(URL_COMIC_THUMBNAIL_PREFIX + comic_id +
-                            URL_COMIC_THUMBNAIL_POSTFIX, rss_title, URL_COMIC_PREFIX + comic_id)
-    rss = PyRSS2Gen.RSS2(
-        title=rss_title,
-        link=URL_COMIC_PREFIX + comic_id,
-        description=comic.synopsis,
-        language='ko',
-        lastBuildDate=comic.last_updated,
-        image=image,
-        items=rss_items)
-
-    return rss.to_xml(encoding="utf-8")
-
-
 @app.route('/lezhin-rss/comic/free/<string:comic_id>.atom')
 def comic_free_atom(comic_id):
     comic = Comic.query.get(comic_id)
     if comic is None:
         return "... 그런 만화가 없는데요?", 404
-    episodes = comic.episodes[0:RSS_FEED_COUNT]
+    episodes = Episode.query.filter_by(comicId=comic_id, free=True) \
+        .order_by(Episode.published.desc(), Episode.seq.desc()).limit(RSS_FEED_COUNT).all()
 
-    atom_items = [episode_to_atom_item(episode) for episode in episodes if episode.free]
-    atom_title = "%s - %s" % (comic.title, comic.artist_display_name)
+    atom_items = [episode_to_atom_item(episode) for episode in episodes]
+    atom_title = "%s - %s" % (comic.title, comic.artistDisplayName)
 
     atom = AtomFeed(
         atom_title,
-        updated=comic.last_updated,
+        updated=episodes[0].published,
         subtitle=comic.synopsis,
         subtitle_type='text',
-        icon=URL_COMIC_THUMBNAIL_PREFIX + comic_id + URL_COMIC_THUMBNAIL_POSTFIX,
-        logo=URL_COMIC_THUMBNAIL_PREFIX + comic_id + URL_COMIC_THUMBNAIL_POSTFIX,
+        icon=URL_COMIC_THUMBNAIL_FORMAT % (comic.comicId,),
+        logo=URL_COMIC_THUMBNAIL_FORMAT % (comic.comicId,),
         feed_url=request.url,
         url=URL_GENRE,
         entries=atom_items
@@ -355,13 +234,12 @@ def index_p(page):
     if page < 1:
         return redirect(url_for('index_p', page=1))
     context = dict()
-    context['URL_COMIC_PREFIX'] = URL_COMIC_PREFIX
-    context['URL_COMIC_THUMBNAIL_PREFIX'] = URL_COMIC_THUMBNAIL_PREFIX
-    context['URL_COMIC_THUMBNAIL_POSTFIX'] = URL_COMIC_THUMBNAIL_POSTFIX
+    context['URL_COMIC_FORMAT'] = URL_COMIC_FORMAT
+    context['URL_COMIC_THUMBNAIL_FORMAT'] = URL_COMIC_THUMBNAIL_FORMAT
     context['comicrows'] = []
     context['page'] = page
-    context['last_update'] = Comic.query.order_by(desc(Comic.last_updated)).first().last_updated.strftime(
-        "%Y-%m-%d %H:%M:%S")
+    context['last_update'] = Episode.query.order_by(Episode.published.desc()) \
+        .first().published.strftime("%Y-%m-%d %H:%M:%S")
 
     query = Comic.query.order_by(Comic.title)
 
@@ -370,7 +248,7 @@ def index_p(page):
         q = request.args.get('q')
         if q:
             context['q'] = q
-            query = query.filter(or_(Comic.title.contains(q), Comic.artist_display_name.contains(q)))
+            query = query.filter(or_(Comic.title.contains(q), Comic.artistDisplayName.contains(q)))
 
     pagination = query.order_by(Comic.title).paginate(page, INDEX_PAGE_SIZE, False)
 

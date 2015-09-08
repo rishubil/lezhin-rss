@@ -5,3 +5,4 @@ venv/
 app/db/*
 log/
 gmail.txt
+.python-version

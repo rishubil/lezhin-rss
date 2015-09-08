@@ -8,97 +8,88 @@ import json
 from datetime import datetime
 
 
+def timestamp_to_datetime(timestamp):
+    return datetime.fromtimestamp(timestamp / 1000)
+
+
 class Comic(db.Model):
     __tablename__ = 'comics'
+    DATETIME_COLUMNS = ('created', 'updated', 'published')
 
-    uid = db.Column(db.Integer)
-    original_json = db.Column(db.Text)
-    adult = db.Column(db.Boolean)
-    artist_display_name = db.Column(db.String(100))
-    comic_id = db.Column(db.String(100), primary_key=True)
-    comment = db.Column(db.Text)
-    genre = db.Column(db.String(50))
-    published = db.Column(db.DateTime)
-    schedule = db.Column(db.String(50))
-    synopsis = db.Column(db.Text)
-    title = db.Column(db.String(120))
+    comicId = db.Column(db.String(255), primary_key=True)
+    title = db.Column(db.String(255))
+    htmlTitle = db.Column(db.String(255))
+    description = db.Column(db.String(255))
+    artists = db.Column(db.String(255))
+    artistDisplayName = db.Column(db.String(255))
+    created = db.Column(db.DateTime)
     updated = db.Column(db.DateTime)
+    adult = db.Column(db.Boolean)
+    completed = db.Column(db.Integer)
+    hasSide = db.Column(db.Boolean)
+    printed = db.Column(db.Boolean)
+    days = db.Column(db.String(255))
+    schedule = db.Column(db.String(255))
+    blind = db.Column(db.String(255))
+    # ignore color
+    newly = db.Column(db.Boolean)
+    genre = db.Column(db.String(255))
+    synopsis = db.Column(db.Text)
+    comment = db.Column(db.Text)
+    todayComment = db.Column(db.Text)
+    editorComment = db.Column(db.Text)
+    notice = db.Column(db.String(255))
+    covers = db.Column(db.Integer)
+    banners = db.Column(db.Integer)
+    relatedComics = db.Column(db.Text)
+    crossView = db.Column(db.Boolean)
+    bgm = db.Column(db.Boolean)
+    # ignore authors
+    localRating = db.Column(db.String(255))
+    published = db.Column(db.DateTime)
+    up = db.Column(db.Integer)
+    seq = db.Column(db.Integer)
 
-    last_updated = db.Column(db.DateTime)
-
-    # episodes (backref)
-
-    def __init__(self, json_string):
-        self.original_json = json_string
-        temp = json.loads(json_string)
-        self.uid = temp.get('id')
-        self.adult = temp.get('isAdult')
-        artists = temp.get('artists')
-        if artists:
-            self.artist_display_name = "/".join(artist.get('name') for artist in artists)
-
-        display = temp.get('display')
-        if display:
-            self.synopsis = display.get('synopsis')
-            self.title = display.get('title')
-            self.comment = display.get('comment')
-            self.schedule = display.get('schedule')
-
-        self.comic_id = temp.get('alias')
-        genres = temp.get('genres')
-        if genres and all(genre for genre in genres):
-            self.genre = ", ".join(genres)
-        publishedAt = temp.get('publishedAt')
-        if publishedAt:
-            self.published = datetime.fromtimestamp(publishedAt / 1000)
-        updatedAt = temp.get('updatedAt')
-        if updatedAt:
-            self.updated = datetime.fromtimestamp(updatedAt / 1000)
-        self.last_updated = datetime.now()
+    def __init__(self, comic_dict):
+        for name, value in comic_dict.iteritems():
+            if hasattr(self, name):
+                if name in Comic.DATETIME_COLUMNS:
+                    value = timestamp_to_datetime(value)
+                setattr(self, name, value)
 
 
 class Episode(db.Model):
     __tablename__ = 'episodes'
+    DATETIME_COLUMNS = ('published', 'freed')
 
-    uid = db.Column(db.Integer)
+    episodeId = db.Column(db.String(255), primary_key=True)
     seq = db.Column(db.Integer)
-    original_json = db.Column(db.Text)
-    artist_comment = db.Column(db.String(200))
-    banner = db.Column(db.String(300))
-    comic_id = db.Column(db.String(50), db.ForeignKey('comics.comic_id'))
-    display_name = db.Column(db.String(100))
-    episode_id = db.Column(db.String(100), primary_key=True)
+    comicId = db.Column(db.String(255), db.ForeignKey('comics.comicId'))
+    name = db.Column(db.String(255))
+    displayName = db.Column(db.String(255))
+    title = db.Column(db.String(255))
+    artists = db.Column(db.String(255))
+    description = db.Column(db.String(255))
+    cover = db.Column(db.String(255))
+    banner = db.Column(db.String(255))
+    social = db.Column(db.String(255))
+    cut = db.Column(db.Integer)
+    page = db.Column(db.Integer)
+    type = db.Column(db.String(255))
+    coin = db.Column(db.Integer)
+    point = db.Column(db.Integer)
     free = db.Column(db.Boolean, default=False)
-    name = db.Column(db.String(10))
+    freeDate = db.Column(db.String(255))
+    up = db.Column(db.Boolean, default=False)
+    dDay = db.Column(db.Integer)
+    artistComment = db.Column(db.String(255))
+    direction = db.Column(db.String(255))
     published = db.Column(db.DateTime)
-    title = db.Column(db.String(120))
-    updated = db.Column(db.DateTime)
+    freed = db.Column(db.DateTime)
 
-    last_updated = db.Column(db.DateTime)
-
-    comic = db.relationship('Comic',
-                            backref=db.backref('episodes', lazy='dynamic', order_by=(db.desc(published), db.desc(seq))))
-
-    def __init__(self, json_string):
-        self.original_json = json_string
-        temp = json.loads(json_string)
-        self.uid = temp.get('id')
-        self.seq = temp.get('seq')
-
-        display = temp.get('display')
-        if display:
-            self.artist_comment = display.get('artistComment')
-            self.display_name = display.get('displayName')
-            self.title = display.get('title')
-
-        # self.banner = temp.get('thumb')  # it must be added manually
-        self.episode_id = temp.get('id')
-        self.free = temp.get('badge') == 'f'
-        self.name = temp.get('name')
-        publishedAt = temp.get('publishedAt')
-        if publishedAt:
-            self.published = datetime.fromtimestamp(publishedAt / 1000)
-        updatedAt = temp.get('updatedAt')
-        if updatedAt:
-            self.updated = datetime.fromtimestamp(updatedAt / 1000)
-        self.last_updated = datetime.now()
+    def __init__(self, episode_dict):
+        for name, value in episode_dict.iteritems():
+            if hasattr(self, name):
+                if name in Episode.DATETIME_COLUMNS:
+                    value = timestamp_to_datetime(value)
+                setattr(self, name, value)
