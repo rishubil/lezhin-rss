@@ -59,6 +59,9 @@ def get_comics():
 def get_episodes(comic_id):
     try:
         print("[{0:s}] getting episodes of {1:s}...".format(str(datetime.now()), comic_id))
+        if '!' in comic_id: # bugfix for 'editordot!'
+            print("[{0:s}] comic_id {1:s} contains illegal character. skip!".format(str(datetime.now()), comic_id))
+            return None
         r = None
         retry_count = RETRY_MAX_COUNT
         while retry_count > 0:
@@ -75,7 +78,7 @@ def get_episodes(comic_id):
     except:
         import traceback
 
-        print("[{0:s}] well, an error is coming.".format(str(datetime.now()), ))
+        print("[{0:s}] well, an error is coming. (comic_id: {1:s})".format(str(datetime.now()), comic_id))
         print(traceback.format_exc())
 
 
@@ -94,10 +97,16 @@ def update_db():
         db.session.query(Comic).delete()
         db.session.query(Episode).delete()
         for comic in comics:
+            if comic is None:
+                continue
             if Comic.query.get(comic.comicId) is None:
                 db.session.add(comic)
         for episodes in episodes_list:
+            if episodes is None:
+                continue
             for episode in episodes:
+                if episode is None:
+                    continue
                 if Episode.query.get(episode.episodeId) is None:
                     db.session.add(episode)
         db.session.commit()
