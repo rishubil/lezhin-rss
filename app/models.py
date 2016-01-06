@@ -12,6 +12,23 @@ def timestamp_to_datetime(timestamp):
     return datetime.fromtimestamp(timestamp / 1000)
 
 
+def dump(inst, cls):
+    convert = dict()
+    d = dict()
+    for c in cls.__table__.columns:
+        v = getattr(inst, c.name)
+        if c.type in convert.keys() and v is not None:
+            try:
+                d[c.name] = convert[c.type](v)
+            except:
+                d[c.name] = "Error:  Failed to covert using ", str(convert[c.type])
+        elif v is None:
+            d[c.name] = str()
+        else:
+            d[c.name] = v
+    return d
+
+
 class Comic(db.Model):
     __tablename__ = 'comics'
     DATETIME_COLUMNS = ('created', 'updated', 'published')
@@ -57,6 +74,10 @@ class Comic(db.Model):
                     value = timestamp_to_datetime(value)
                 setattr(self, name, value)
 
+    @property
+    def dump(self):
+        return dump(self, self.__class__)
+
 
 class Episode(db.Model):
     __tablename__ = 'episodes'
@@ -93,3 +114,7 @@ class Episode(db.Model):
                 if name in Episode.DATETIME_COLUMNS:
                     value = timestamp_to_datetime(value)
                 setattr(self, name, value)
+
+    @property
+    def dump(self):
+        return dump(self, self.__class__)

@@ -30,6 +30,7 @@ API_URL_COMICS = API_URL_PREFIX + 'comics'
 API_URL_EPISODES_FORMAT = API_URL_PREFIX + 'episodes/%s'
 URL_COMIC_BANNER_FORMAT = CDN_URL_PREFIX + 'comics/%s/images/banners/%s'
 URL_COMIC_THUMBNAIL_FORMAT = CDN_URL_PREFIX + 'comics/%s/images/thumbnail'
+URL_COMIC_WIDE_FORMAT = CDN_URL_PREFIX + 'comics/%s/images/wide'
 URL_EPISODE_BANNER_FORMAT = CDN_URL_PREFIX + 'episodes/%s/banners/1'
 
 RSS_FEED_COUNT = 30
@@ -83,7 +84,7 @@ def update_db():
     start = time.time()
     result = dict()
     try:
-        comics = get_comics()
+        comics = sorted(get_comics(), key=lambda x: x.comicId)
 
         pool = Pool(processes=UPDATE_PROCESS_SIZE)
         episodes_list = pool.map(get_episodes, [comic.comicId for comic in comics])
@@ -226,64 +227,24 @@ def comic_free_atom(comic_id):
 
 @app.route('/lezhin-rss/')
 def index():
-    return index_p(1)
-
-
-@app.route('/lezhin-rss/<int:page>')
-def index_p(page):
-    if page < 1:
-        return redirect(url_for('index_p', page=1))
     context = dict()
-    context['URL_COMIC_FORMAT'] = URL_COMIC_FORMAT
-    context['URL_COMIC_THUMBNAIL_FORMAT'] = URL_COMIC_THUMBNAIL_FORMAT
-    context['comicrows'] = []
-    context['page'] = page
     context['last_update'] = Episode.query.order_by(Episode.published.desc()) \
         .first().published.strftime("%Y-%m-%d %H:%M:%S")
-
-    query = Comic.query.order_by(Comic.title)
-
-    context['q'] = None
-    if 'q' in request.args:
-        q = request.args.get('q')
-        if q:
-            context['q'] = q
-            query = query.filter(or_(Comic.title.contains(q), Comic.artistDisplayName.contains(q)))
-
-    pagination = query.order_by(Comic.title).paginate(page, INDEX_PAGE_SIZE, False)
-
-    if len(pagination.items) == 0 and pagination.has_prev:
-        return redirect(url_for('index_p', page=pagination.total / INDEX_PAGE_SIZE + 1))
-
-    context['has_next'] = pagination.has_next
-    context['has_prev'] = pagination.has_prev
-
-    comics = pagination.items
-
-    for i in xrange(len(comics)):
-        if i % INDEX_ITEM_IN_ROW == 0:
-            context['comicrows'].append(list())
-        context['comicrows'][i / INDEX_ITEM_IN_ROW].append(comics[i])
+    context['comics'] = api_comics()
 
     return render_template('index.html', context=context)
 
 
+
 @app.route('/lezhin-rss/api/comics')
 def api_comics():
-    comics = Comic.query.all()
-    result = dict()
-    result['comics'] = [json.loads(comic.original_json) for comic in comics]
-    return json.dumps(result)
+    return json.dumps({'comics': [x.dump for x in Comic.query.all()]}, default=lambda obj: (
+        obj.isoformat()
+        if isinstance(obj, datetime)
+        else None
+    ), sort_keys=True)
 
 
 @app.route('/lezhin-rss/api/episodes/<string:comic_id>')
 def api_episodes(comic_id):
-    comic = Comic.query.get(comic_id)
-    result = dict()
-    if comic is None:
-        result['status'] = "not found"
-        result['episodes'] = list()
-        return json.dumps(result), 404
-    result['status'] = 'ok'
-    result['episodes'] = [json.loads(episode.original_json) for episode in comic.episodes]
-    return json.dumps(result)
+    return requests.get(API_URL_EPISODES_FORMAT % (comic_id,), headers=API_HEADER).text
